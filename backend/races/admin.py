@@ -72,21 +72,34 @@ class RaceVolunteerAdmin(OrganisationScopedAdminMixin, admin.ModelAdmin):
 class ProfileAdmin(admin.ModelAdmin):
     """Not organisation-scoped by model design (§10) — an organiser is
     shown only profiles that have actually raced with their organisation
-    at least once, via the Participant join, never another organiser's
-    full roster."""
+    at least once (via the Participant join) or that they created
+    themselves here before entering it into a race, never another
+    organiser's full roster."""
 
     list_display = ("full_name", "email", "itra_id", "qr_code_uuid")
     search_fields = ("full_name", "email", "itra_id")
     readonly_fields = ("qr_code_uuid",)
 
     def get_queryset(self, request):
+        from django.db.models import Q
+
         qs = super().get_queryset(request)
         if request.user.is_superuser:
             return qs
         organisation = get_request_organisation(request.user)
         if organisation is None:
             return qs.none()
-        return qs.filter(participations__race__organisation=organisation).distinct()
+        return qs.filter(
+            Q(participations__race__organisation=organisation)
+            | Q(created_by_organisation=organisation)
+        ).distinct()
+
+    def save_model(self, request, obj, form, change):
+        if not change and not request.user.is_superuser:
+            organisation = get_request_organisation(request.user)
+            if organisation is not None:
+                obj.created_by_organisation = organisation
+        super().save_model(request, obj, form, change)
 
     def _member_or_superuser(self, request):
         if request.user.is_superuser:

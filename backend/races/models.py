@@ -131,6 +131,20 @@ class Profile(models.Model):
     # Reserved/unused in v0 — for the future P1 consent gate (§6, §8).
     cross_org_sharing_consent_at = models.DateTimeField(null=True, blank=True)
 
+    # Visibility bookkeeping only — NOT an ownership/exclusivity marker
+    # (Profiles stay intentionally shareable across organisations, see
+    # class docstring). Lets the organisation that hand-created a Profile
+    # via Django Admin (before it has any Participant row yet) still see
+    # it in their Profile list, which the Participant-join filter alone
+    # can't do for a brand-new, not-yet-entered-in-a-race profile.
+    created_by_organisation = models.ForeignKey(
+        "accounts.Organisation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_profiles",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
