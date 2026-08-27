@@ -1,0 +1,61 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# Deploys the Django API + a free Postgres database. In the Render
+# dashboard: New -> Blueprint -> pick this repo/branch -> Render reads
+# this file and provisions both. You'll be prompted for the `sync: false`
+# values below during setup (or can fill them in after, under the web
+# service's Environment tab).
+#
+# The frontend (the PWA) is NOT deployed here — deploy frontend/ to
+# Vercel separately (see DEPLOY.md), then come back and set
+# FRONTEND_BASE_URL below to that Vercel URL.
+
+services:
+  - type: web
+    name: race-timing-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py seed_admin"
+    startCommand: "gunicorn config.wsgi:application"
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: race-timing-db
+          property: connectionString
+      - key: CELERY_TASK_ALWAYS_EAGER
+        value: "true"
+      - key: CORS_ALLOW_ALL_ORIGINS
+        value: "true"
+      # Set this to your Vercel frontend URL once it's deployed (e.g.
+      # https://race-timing-app.vercel.app) — used to build magic-link
+      # URLs. The service restarts automatically when you save it.
+      - key: FRONTEND_BASE_URL
+        sync: false
+      # First superuser (full Django Admin access) — pick your own values
+      # when Render prompts for them.
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+      # Optional: also bootstrap a demo Organisation + organiser account
+      # (not a superuser) so you can walk through the real organiser
+      # flow. Leave blank to skip.
+      - key: DEMO_ORG_NAME
+        sync: false
+      - key: DEMO_ORGANISER_EMAIL
+        sync: false
+      - key: DEMO_ORGANISER_PASSWORD
+        sync: false
+
+databases:
+  - name: race-timing-db
+    plan: free
+    databaseName: race_timing
+    user: race_timing
