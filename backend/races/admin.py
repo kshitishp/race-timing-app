@@ -1,8 +1,10 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+
 from import_export.admin import ImportExportModelAdmin
 
 from accounts.admin_base import OrganisationScopedAdminMixin
 from accounts.tenancy import get_request_organisation
+from races import services
 from races.models import (
     BillingUsageRecord,
     Checkpoint,
@@ -46,6 +48,24 @@ class RaceVolunteerAdmin(OrganisationScopedAdminMixin, admin.ModelAdmin):
     list_display = ("user", "race", "checkpoint", "invited_at", "accepted_at")
     list_filter = ("race",)
     search_fields = ("user__email",)
+    autocomplete_fields = ["user"]
+    actions = ["send_magic_link"]
+
+    @admin.action(description="Send/resend magic link (shows the URL here)")
+    def send_magic_link(self, request, queryset):
+        # Creating a RaceVolunteer row here does NOT by itself issue a
+        # magic link (that only happens via the API's invite endpoint) —
+        # this action is how you actually get a copyable login URL for
+        # someone added through this Admin page, and how you regenerate
+        # one if an email never arrived (e.g. no SMTP configured, so
+        # DJANGO_EMAIL_BACKEND is just logging it instead of delivering).
+        for assignment in queryset.select_related("user", "race"):
+            url = services.issue_volunteer_invite(assignment)
+            self.message_user(
+                request,
+                f"{assignment.user.email} — {assignment.race.name}: {url}",
+                level=messages.SUCCESS,
+            )
 
 
 @admin.register(Profile)
@@ -83,8 +103,12 @@ class ProfileAdmin(admin.ModelAdmin):
         return self._member_or_superuser(request)
 
     def has_add_permission(self, request):
-        # Profiles are created implicitly via Participant creation/import.
-        return request.user.is_superuser
+        # An organiser needs to be able to create a brand-new person's
+        # Profile directly when adding a participant who doesn't already
+        # exist anywhere on the platform (Participant's `profile` field
+        # is a plain FK picker, not the nested create-or-reuse-by-email
+        # the API does — see ParticipantAdmin.autocomplete_fields below).
+        return self._member_or_superuser(request)
 
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
@@ -97,6 +121,7 @@ class ParticipantAdmin(OrganisationScopedAdminMixin, ImportExportModelAdmin, adm
     list_display = ("bib_number", "profile", "race", "category", "status")
     list_filter = ("race", "status")
     search_fields = ("bib_number", "profile__full_name", "profile__email")
+    autocomplete_fields = ["profile"]
 
     def get_import_resource_kwargs(self, request, *args, **kwargs):
         result = super().get_import_resource_kwargs(request, *args, **kwargs)

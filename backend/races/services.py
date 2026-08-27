@@ -12,6 +12,34 @@ from django.utils import timezone
 from races.models import BillingUsageRecord, Timing
 
 
+def issue_volunteer_invite(assignment):
+    """Issue a fresh magic link for a RaceVolunteer assignment, email it
+    (best-effort — depends on DJANGO_EMAIL_BACKEND being configured), and
+    return the shareable URL (requirement #7: organiser can copy/forward
+    it directly, not just rely on delivery). Shared by the API's volunteer
+    invite endpoint and the "Send/resend magic link" Django Admin action
+    so both paths behave identically."""
+    from accounts.auth import build_magic_link_url
+    from accounts.models import MagicLink
+    from accounts.tasks import send_magic_link_email
+
+    link, raw_token = MagicLink.issue(
+        assignment.user,
+        MagicLink.Purpose.VOLUNTEER_LOGIN,
+        race=assignment.race,
+        ttl_minutes=settings.MAGIC_LINK_TTL_MINUTES,
+    )
+    url = build_magic_link_url(raw_token)
+    send_magic_link_email.delay(
+        assignment.user.email,
+        assignment.user.name,
+        url,
+        MagicLink.Purpose.VOLUNTEER_LOGIN,
+        assignment.race.name,
+    )
+    return url
+
+
 def detect_duplicate(checkpoint, participant, timestamp, exclude_pk=None):
     """A second scan of the same participant at the same checkpoint within
     the configurable window (§9, requirement #12) is a duplicate. Returns

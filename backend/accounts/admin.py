@@ -27,6 +27,14 @@ class OrganisationMemberInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(DjangoUserAdmin):
+    """Organiser staff *and* volunteers share this table (§8). An
+    organiser needs to be able to create a new person here (to then
+    assign them as a RaceVolunteer) even though Users aren't
+    organisation-scoped by model design — so, like ProfileAdmin, this
+    bypasses Django's permission-object framework (organisers are never
+    granted explicit model permissions) and just checks organisation
+    membership directly."""
+
     model = User
     fieldsets = (
         (None, {"fields": ("email", "password")}),
@@ -55,6 +63,49 @@ class UserAdmin(DjangoUserAdmin):
         return qs.filter(
             models_q_organisation_or_volunteer(organisation)
         ).distinct()
+
+    def _member_or_superuser(self, request):
+        if request.user.is_superuser:
+            return True
+        from accounts.tenancy import get_request_organisation
+
+        return get_request_organisation(request.user) is not None
+
+    def has_module_permission(self, request):
+        return self._member_or_superuser(request)
+
+    def has_view_permission(self, request, obj=None):
+        return self._member_or_superuser(request)
+
+    def has_add_permission(self, request):
+        return self._member_or_superuser(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self._member_or_superuser(request)
+
+    def get_inline_instances(self, request, obj=None):
+        # OrganisationMember grants Django Admin access to a whole
+        # organisation's data — an organiser managing a volunteer's User
+        # record must not be able to grant that (to themselves or anyone
+        # else, for this org or any other) via this inline. Only a
+        # superuser sees/edits it.
+        if not request.user.is_superuser:
+            return []
+        return super().get_inline_instances(request, obj)
+
+    def get_fieldsets(self, request, obj=None):
+        # Same reasoning as get_inline_instances: is_staff/is_superuser/
+        # groups/user_permissions are platform-wide privilege grants, not
+        # something an organiser editing a volunteer's basic details
+        # should ever see, let alone toggle.
+        if request.user.is_superuser:
+            return super().get_fieldsets(request, obj)
+        if obj is None:
+            return self.add_fieldsets
+        return (
+            (None, {"fields": ("email", "password")}),
+            ("Personal info", {"fields": ("name", "phone")}),
+        )
 
 
 def models_q_organisation_or_volunteer(organisation):

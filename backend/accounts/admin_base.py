@@ -8,6 +8,7 @@ A platform superuser (created via createsuperuser) sees everything and is
 used for platform operations / support, not by organisers.
 """
 
+from accounts.models import Organisation
 from accounts.tenancy import get_request_organisation
 
 
@@ -70,6 +71,26 @@ class OrganisationScopedAdminMixin:
             if obj_org is None:
                 return False
         return obj_org.pk == organisation.pk
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # get_queryset/_object_allowed lock down the list/detail views,
+        # but a plain ModelAdmin's add/change form otherwise still offers
+        # every organisation's rows in FK dropdowns (e.g. Checkpoint's
+        # `race` picker, or RaceVolunteer's `race`/`checkpoint` pickers) —
+        # scope those too wherever the related model is itself
+        # tenant-scoped. Models deliberately excluded from tenant scoping
+        # (Profile, User) are left alone, matching their design intent.
+        if not request.user.is_superuser:
+            organisation = get_request_organisation(request.user)
+            if organisation is not None:
+                related_model = db_field.remote_field.model
+                if related_model is Organisation:
+                    kwargs["queryset"] = related_model.objects.filter(pk=organisation.pk)
+                else:
+                    tenant_path = getattr(related_model, "TENANT_FILTER_PATH", None)
+                    if tenant_path:
+                        kwargs["queryset"] = related_model.objects.filter(**{tenant_path: organisation})
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def save_model(self, request, obj, form, change):
         if not request.user.is_superuser and self.tenant_filter_path == "organisation":

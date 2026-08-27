@@ -10,10 +10,8 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.auth import build_magic_link_url
-from accounts.models import MagicLink, User
+from accounts.models import User
 from accounts.permissions import IsOrganisationMember, IsVolunteerSession
-from accounts.tasks import send_magic_link_email
 from accounts.tenancy import get_request_organisation
 from races import services
 from races.export import get_formatter
@@ -207,16 +205,7 @@ class RaceVolunteerListCreateView(OrganisationScopedAPIView):
             race=race, checkpoint=checkpoint, user=user
         )
 
-        from django.conf import settings as dj_settings
-
-        link, raw_token = MagicLink.issue(
-            user,
-            MagicLink.Purpose.VOLUNTEER_LOGIN,
-            race=race,
-            ttl_minutes=dj_settings.MAGIC_LINK_TTL_MINUTES,
-        )
-        url = build_magic_link_url(raw_token)
-        send_magic_link_email.delay(user.email, user.name, url, MagicLink.Purpose.VOLUNTEER_LOGIN, race.name)
+        url = services.issue_volunteer_invite(assignment)
 
         payload = RaceVolunteerSerializer(assignment).data
         payload["magic_link_url"] = url
