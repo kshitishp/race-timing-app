@@ -17,7 +17,8 @@ even with zero connectivity, and it syncs automatically once back online.
 - **Multi-tenant:** every race belongs to one `Organisation`; isolation is
   enforced in the query layer (`accounts/tenancy.py`), not the database.
 
-See `backend/` and `frontend/` for each half.
+See `backend/` and `frontend/` for each half. Want a hosted demo instead
+of running locally? See [`DEPLOY.md`](./DEPLOY.md).
 
 ## Backend setup
 

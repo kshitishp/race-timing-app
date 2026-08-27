@@ -1,0 +1,11 @@
+# Optional: install alongside requirements.txt for the MySQL production
+# setup described in the blueprint (§7). Needs libmysqlclient-dev (or
+# equivalent) available at build time, which most managed PaaS free tiers
+# don't provide out of the box — that's why the default requirements.txt
+# uses Postgres (psycopg2-binary) instead for easy hosting on
+# Render/Railway/Fly.io/etc. Both work with the same DATABASE_URL-driven
+# settings.py; just point DATABASE_URL at mysql://... instead.
+#
+#   pip install -r requirements.txt -r requirements-mysql.txt
+
+mysqlclient==2.2.4
