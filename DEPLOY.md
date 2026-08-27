@@ -47,11 +47,20 @@ required for the free tier.
 ## 2. Frontend — Vercel
 
 1. In the Vercel dashboard: **New Project**, import this repo.
-2. Set **Root Directory** to `frontend`. Vercel auto-detects Vite (build
-   command `npm run build`, output `dist`) — the included
-   `frontend/vercel.json` adds the SPA rewrite React Router needs (so
-   `/scan` and `/auth/consume` don't 404 on refresh) while leaving the
-   PWA's `sw.js`/manifest/icons served as real files.
+2. Set **Root Directory** to `frontend` if that field is editable for you
+   (click any "Edit" link next to it — it's sometimes read-only until
+   you do). Vercel then auto-detects Vite (build command `npm run
+   build`, output `dist`) and uses `frontend/vercel.json` for the SPA
+   rewrite React Router needs (so `/scan` and `/auth/consume` don't 404
+   on refresh) while leaving the PWA's `sw.js`/manifest/icons served as
+   real files.
+
+   **If Root Directory won't accept a value** (a known Vercel UI quirk on
+   some accounts), skip it — leave Root Directory as the repo root and
+   deploy as-is. The root-level `vercel.json` handles everything instead
+   (`cd frontend && npm install && npm run build`, output
+   `frontend/dist`, plus the same SPA rewrite) — no dashboard field
+   needed.
 3. Add an environment variable: `VITE_API_BASE_URL` =
    `https://<your-render-url>.onrender.com/api`. (Vite bakes env vars in
    at build time, so this must be a Vercel project env var, not just
